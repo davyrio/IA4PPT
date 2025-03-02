@@ -104,15 +104,29 @@ export class PowerPointService {
             slideMasterId: '2147483648#93620447', /* An ID from `Presentation.slideMasters`. */
             layoutId: '2147483650#595629897' /* An ID from `SlideMaster.layouts`. */
           };
+          const newSlideTitleOptions: PowerPoint.AddSlideOptions = {
+            slideMasterId: '2147483648#93620447', /* An ID from `Presentation.slideMasters`. */
+            layoutId: '2147483649#2160907878' /* An ID from `SlideMaster.layouts`. */
+          };
       
         PowerPoint.run(async (context) => {
           for (let i = 0; i < slides.length; i++) {
             const slide = slides[i];
-            let j=i+1;
             try {
-              await context.presentation.slides.add(newSlideOptions);
+              await context.presentation.slides.load("items");
               await context.sync();
-              const newSlide = await context.presentation.slides.getItemAt(j);
+              let countSlides = context.presentation.slides.items.length;
+              console.log(`Slide count: ${countSlides}`);
+              if (countSlides == 0) {
+                await context.presentation.slides.add(newSlideTitleOptions);
+                await context.sync();
+                console.log(`Added title slide`);
+              } else {
+                await context.presentation.slides.add(newSlideOptions);
+                await context.sync();
+                console.log(`Added content slide`);
+              }
+              const newSlide = await context.presentation.slides.getItemAt(i);
               await context.sync();
               this.logOperation('AddSlide', true, i, undefined, { newSlide: newSlide.id });
               let shapes = await newSlide.shapes.load("items,items/textFrame");
@@ -133,7 +147,7 @@ export class PowerPointService {
                 let shapeName = shape.name;
                 if (shapeName.includes('Title')) {
                     textFrame.textRange.text = slide.title;
-                } else if (shapeName.includes('Content')) {
+                } else if (shapeName.includes('Content') || shapeName.includes('Subtitle')) {
                     textFrame.textRange.text = slide.content;
                 }
                 await context.sync();

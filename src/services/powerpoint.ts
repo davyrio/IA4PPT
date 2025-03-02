@@ -56,43 +56,7 @@ export class PowerPointService {
           this.logOperation('MethodFailed', false, undefined, error.message, { method: 'PowerPointAPI' });
         }
       }
-/*
-      // Méthode 2: API Document PowerPoint
-      if (!methodSuccess) {
-        try {
-          this.logOperation('AttemptMethod', true, undefined, undefined, { method: 'DocumentAPI' });
-          await this.createSlidesViaDocumentAPI(slides);
-          methodSuccess = true;
-          this.logOperation('MethodSuccess', true, undefined, undefined, { method: 'DocumentAPI' });
-        } catch (error) {
-          this.logOperation('MethodFailed', false, undefined, error.message, { method: 'DocumentAPI' });
-        }
-      }
 
-      // Méthode 3: Insertion séquentielle
-      if (!methodSuccess) {
-        try {
-          this.logOperation('AttemptMethod', true, undefined, undefined, { method: 'SequentialInsertion' });
-          await this.createSlidesSequentially(slides);
-          methodSuccess = true;
-          this.logOperation('MethodSuccess', true, undefined, undefined, { method: 'SequentialInsertion' });
-        } catch (error) {
-          this.logOperation('MethodFailed', false, undefined, error.message, { method: 'SequentialInsertion' });
-        }
-      }
-
-      // Méthode 4: Approche OOXML
-      if (!methodSuccess) {
-        try {
-          this.logOperation('AttemptMethod', true, undefined, undefined, { method: 'OOXML' });
-          await this.createSlidesViaOOXML(slides);
-          methodSuccess = true;
-          this.logOperation('MethodSuccess', true, undefined, undefined, { method: 'OOXML' });
-        } catch (error) {
-          this.logOperation('MethodFailed', false, undefined, error.message, { method: 'OOXML' });
-        }
-      }
-*/
       // Méthode de dernier recours: texte formaté
       if (!methodSuccess) {
         try {
@@ -115,15 +79,41 @@ export class PowerPointService {
   private static async createSlidesViaPowerPointAPI(slides: Slide[]): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
+
+        PowerPoint.run(async function(context) {
+          // Load information about all the slide masters and associated layouts.
+          const slideMasters: PowerPoint.SlideMasterCollection = context.presentation.slideMasters.load("id, name, layouts/items/name, layouts/items/id");
+          await context.sync();
+        
+          // Log the name and ID of each slide master.
+          for (let i = 0; i < slideMasters.items.length; i++) {
+            console.log("Master name: " + slideMasters.items[i].name);
+            console.log("Master ID: " + slideMasters.items[i].id);
+        
+            // Log the name and ID of each slide layout in the slide master.
+            const layoutsInMaster: PowerPoint.SlideLayoutCollection = slideMasters.items[i].layouts;
+            for (let j = 0; j < layoutsInMaster.items.length; j++) {
+              console.log("    Layout name: " + layoutsInMaster.items[j].name + " Layout ID: " + layoutsInMaster.items[j].id);
+            }
+          }
+        });
+
+        
+        // Create a new slide using an existing master slide and layout.
+          const newSlideOptions: PowerPoint.AddSlideOptions = {
+            slideMasterId: '2147483648#93620447', /* An ID from `Presentation.slideMasters`. */
+            layoutId: '2147483650#595629897' /* An ID from `SlideMaster.layouts`. */
+          };
+      
         PowerPoint.run(async (context) => {
           for (let i = 0; i < slides.length; i++) {
             const slide = slides[i];
+            let j=i+1;
             try {
-              await context.presentation.slides.add();
-              const newSlide = context.presentation.slides.getItemAt(i);
-              context.load(newSlide);
-              await
-              context.sync();
+              await context.presentation.slides.add(newSlideOptions);
+              await context.sync();
+              const newSlide = await context.presentation.slides.getItemAt(j);
+              await context.sync();
               this.logOperation('AddSlide', true, i, undefined, { newSlide: newSlide.id });
               const titleShape = newSlide.shapes.addTextBox(slide.title);
               titleShape.top = 50;
@@ -136,7 +126,7 @@ export class PowerPointService {
               contentShape.left = 50;
               contentShape.width = 600;
               contentShape.height = 300;
-              
+              console.log(`Added slide ${j}: ${slide.title}`);
               this.logOperation('AddSlide', true, i, undefined, { title: slide.title.substring(0, 20) + '...' });
             } catch (slideError) {
               this.logOperation('AddSlide', false, i, slideError.message, { title: slide.title.substring(0, 20) + '...' });

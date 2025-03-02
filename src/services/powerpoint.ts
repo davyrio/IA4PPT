@@ -115,17 +115,33 @@ export class PowerPointService {
               const newSlide = await context.presentation.slides.getItemAt(j);
               await context.sync();
               this.logOperation('AddSlide', true, i, undefined, { newSlide: newSlide.id });
-              const titleShape = newSlide.shapes.addTextBox(slide.title);
-              titleShape.top = 50;
-              titleShape.left = 50;
-              titleShape.width = 600;
-              titleShape.height = 50;
+              let shapes = await newSlide.shapes.load("items,items/textFrame");
+
+              await context.sync();
+      
+              // Modifier le texte du titre et du contenu
+              shapes.items.forEach(async (shape) => {
+                
+                const textFrame: PowerPoint.TextFrame = shape.textFrame.load("textRange,hasText");
+                await context.sync();
+                console.log(`Shape has text: ${shape.textFrame.hasText}`);  
+                const textRange: PowerPoint.TextRange = textFrame.textRange;
+                textRange.load("text");
+                
+                await context.sync();
+                let shapeId = shape.id;
+                let shapeName = shape.name;
+                if (shapeName.includes('Title')) {
+                    textFrame.textRange.text = slide.title;
+                } else if (shapeName.includes('Content')) {
+                    textFrame.textRange.text = slide.content;
+                }
+                await context.sync();
+                console.log(`Updated text of shape ${shapeName} #${shapeId}: ${textFrame.textRange.text}`);
+              });
+      
+              await context.sync();
               
-              const contentShape = newSlide.shapes.addTextBox(slide.content);
-              contentShape.top = 120;
-              contentShape.left = 50;
-              contentShape.width = 600;
-              contentShape.height = 300;
               console.log(`Added slide ${j}: ${slide.title}`);
               this.logOperation('AddSlide', true, i, undefined, { title: slide.title.substring(0, 20) + '...' });
             } catch (slideError) {

@@ -95,7 +95,7 @@ export class MistralService {
       model: 'mistral-large-latest',
       messages: [{
         role: 'user',
-        content: `Analyse le contenu suivant d'une diapositive PowerPoint et génère 3 à 5 mots-clés pertinents en français qui pourraient être utilisés pour rechercher une image illustrant parfaitement ce contenu. Réponds uniquement avec les mots-clés séparés par des virgules, sans phrases ni explications supplémentaires.\n\nContenu de la diapositive:\n${slideContent}`
+        content: `Analyse le contenu suivant d'une diapositive PowerPoint et génère 3 mots-clés maximum pertinents en français qui pourraient être utilisés pour rechercher une image illustrant parfaitement ce contenu. Réponds uniquement avec les mots-clés séparés par des virgules, sans phrases ni explications supplémentaires.\n\nContenu de la diapositive:\n${slideContent}`
       }],
       temperature: 0.3
     };

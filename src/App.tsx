@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Send, Key, ChevronDown, ChevronUp, AlertCircle, RefreshCw, Image } from 'lucide-react';
 import { MistralService, ApiLog, Slide } from './services/mistral';
 import { PowerPointService, SlideOperationLog } from './services/powerpoint';
-import { PexelsService, PexelsImage } from './services/pexels';
+import { UnsplashService, UnsplashImage } from './services/unsplash';
 
 function App() {
   const [apiKey, setApiKey] = useState('');
@@ -16,7 +16,9 @@ function App() {
   const [slides, setSlides] = useState<Slide[]>([]);
   const [operationStatus, setOperationStatus] = useState<string>('');
   const [loadingImages, setLoadingImages] = useState<{ [key: number]: boolean }>({});
-  const [suggestedImages, setSuggestedImages] = useState<{ [key: number]: PexelsImage[] }>({});
+  const [suggestedImages, setSuggestedImages] = useState<{ [key: number]: UnsplashImage[] }>({});
+  const [imageKeywords, setImageKeywords] = useState<{ [key: number]: string }>({});
+  const [refreshingImages, setRefreshingImages] = useState<{ [key: number]: boolean }>({});
 
   useEffect(() => {
     const savedApiKey = localStorage.getItem('mistral_api_key');
@@ -60,6 +62,7 @@ function App() {
     setError('');
     setSlides([]);
     setSuggestedImages({});
+    setImageKeywords({});
     setOperationStatus('Initialisation...');
 
     try {
@@ -105,9 +108,12 @@ function App() {
       // Générer des mots-clés pour la recherche d'images
       const keywords = await mistralService.generateKeywordsForImage(slideContent);
       console.log(`Mots-clés générés: ${keywords}`);
+      
+      // Enregistrer les mots-clés pour une utilisation ultérieure (rafraîchissement)
+      setImageKeywords(prev => ({ ...prev, [slideIndex]: keywords }));
 
-      // Rechercher des images avec ces mots-clés
-      const images = await PexelsService.searchImages(keywords);
+      // Rechercher des images avec ces mots-clés via Unsplash
+      const images = await UnsplashService.searchImages(keywords);
       console.log(`Images trouvées: ${images.length}`);
 
       // Mettre à jour l'état avec les images suggérées
@@ -118,6 +124,32 @@ function App() {
     } finally {
       // Mettre à jour l'état de chargement
       setLoadingImages(prev => ({ ...prev, [slideIndex]: false }));
+    }
+  };
+
+  const handleRefreshImages = async (slideIndex: number) => {
+    if (!imageKeywords[slideIndex]) {
+      setError('Aucun mot-clé disponible pour rafraîchir les images');
+      return;
+    }
+
+    // Mettre à jour l'état de rafraîchissement pour cette slide
+    setRefreshingImages(prev => ({ ...prev, [slideIndex]: true }));
+
+    try {
+      // Utiliser les mots-clés existants pour charger la page suivante
+      const keywords = imageKeywords[slideIndex];
+      const images = await UnsplashService.loadNextPage(keywords);
+      console.log(`Nouvelles images trouvées: ${images.length}`);
+
+      // Mettre à jour l'état avec les nouvelles images suggérées
+      setSuggestedImages(prev => ({ ...prev, [slideIndex]: images }));
+    } catch (error) {
+      console.error('Erreur lors du rafraîchissement des images:', error);
+      setError(`Erreur lors du rafraîchissement des images: ${error.message}`);
+    } finally {
+      // Mettre à jour l'état de rafraîchissement
+      setRefreshingImages(prev => ({ ...prev, [slideIndex]: false }));
     }
   };
 
@@ -213,17 +245,29 @@ function App() {
             {/* Affichage des images suggérées */}
             {suggestedImages[index] && (
               <div className="mt-3">
-                <h5 className="text-sm font-medium mb-2">Sélectionnez une image :</h5>
+                <div className="flex justify-between items-center mb-2">
+                  <h5 className="text-sm font-medium">Sélectionnez une image :</h5>
+                  {/* Bouton de rafraîchissement des images */}
+                  <button
+                    onClick={() => handleRefreshImages(index)}
+                    disabled={refreshingImages[index]}
+                    className="flex items-center px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors"
+                    title="Charger d'autres images"
+                  >
+                    <RefreshCw className={`h-3 w-3 mr-1 ${refreshingImages[index] ? 'animate-spin' : ''}`} />
+                    Autres images
+                  </button>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {suggestedImages[index].map((image, imgIndex) => (
                     <div 
                       key={imgIndex} 
-                      className={`relative cursor-pointer border-2 rounded overflow-hidden hover:opacity-90 transition-opacity ${slide.imageUrl === image.src.medium ? 'border-blue-500' : 'border-transparent'}`}
-                      onClick={() => handleSelectImage(index, image.src.medium)}
+                      className={`relative cursor-pointer border-2 rounded overflow-hidden hover:opacity-90 transition-opacity ${slide.imageUrl === image.urls.regular ? 'border-blue-500' : 'border-transparent'}`}
+                      onClick={() => handleSelectImage(index, image.urls.regular)}
                     >
                       <img 
-                        src={image.src.small} 
-                        alt={image.alt || `Image suggestion ${imgIndex + 1}`} 
+                        src={image.urls.thumb} 
+                        alt={image.alt_description || `Image suggestion ${imgIndex + 1}`} 
                         className="w-24 h-24 object-cover"
                       />
                     </div>

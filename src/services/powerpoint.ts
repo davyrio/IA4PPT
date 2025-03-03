@@ -236,4 +236,150 @@ export class PowerPointService {
       }
     });
   }
+
+  static async updateSlideImage(slideIndex: number, imageUrl: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        PowerPoint.run(async (context) => {
+          try {
+            // Charger toutes les slides
+            const slides = context.presentation.slides.load("items");
+            await context.sync();
+            
+            // Vérifier si la slide existe
+            if (slideIndex >= slides.items.length) {
+              this.logOperation('UpdateSlideImage', false, slideIndex, "La diapositive n'existe pas");
+              reject(new Error(`La diapositive ${slideIndex + 1} n'existe pas`));
+              return;
+            }
+            
+            // Se positionner sur la slide sélectionnée
+            const targetSlide = await context.presentation.slides.getItemAt(slideIndex);
+            await context.sync();
+            this.logOperation('SelectSlide', true, slideIndex);
+            
+            // Charger les formes existantes dans la slide
+            const shapes = targetSlide.shapes.load("items,items/textFrame,items/name,items/id,items/left,items/top,items/width,items/height");
+            await context.sync();
+            
+            // Identifier le shape de contenu
+            let contentShape = null;
+            let existingImage = null;
+            
+            for (let i = 0; i < shapes.items.length; i++) {
+              const shape = shapes.items[i];
+              if (shape.name.includes('Content')) {
+                contentShape = shape;
+              } else if (shape.name.includes('Picture') || 
+                        shape.name.includes('Image') || 
+                        shape.name.includes('img')) {
+                // Identifier toute image existante pour la remplacer
+                existingImage = shape;
+              }
+            }
+            
+            // Si aucun shape de contenu n'a été trouvé
+            if (!contentShape) {
+              this.logOperation('UpdateSlideImage', false, slideIndex, "Aucun contenu trouvé dans la diapositive");
+              reject(new Error("Aucun contenu trouvé dans la diapositive"));
+              return;
+            }
+            
+            // Si une image existe déjà, la supprimer
+            if (existingImage) {
+              existingImage.delete();
+              await context.sync();
+              this.logOperation('DeleteExistingImage', true, slideIndex);
+            }
+            
+            // Récupérer les dimensions et la position actuelles du contenu
+            const contentLeft = contentShape.left;
+            const contentTop = contentShape.top;
+            const contentWidth = contentShape.width;
+            const contentHeight = contentShape.height;
+            
+            // Calculer les nouvelles dimensions et positions
+            // L'image prendra 40% de la largeur à gauche
+            const imageWidth = contentWidth * 0.4;
+            const imageHeight = contentHeight * 0.9; // 90% de la hauteur du contenu
+            const imageLeft = contentLeft;
+            const imageTop = contentTop + (contentHeight - imageHeight) / 2; // Centrer verticalement
+            
+            // Réduire la largeur du contenu et le déplacer vers la droite
+            contentShape.left = contentLeft + imageWidth + 10; // 10 pixels de marge
+            contentShape.width = contentWidth - imageWidth - 10;
+            
+            await context.sync();
+            this.logOperation('ResizeContent', true, slideIndex, undefined, {
+              originalWidth: contentWidth,
+              newWidth: contentShape.width,
+              newLeft: contentShape.left
+            });
+            
+          // Convertir l'image en base64
+          try {
+            const imageBase64 = await this.getImageAsBase64(imageUrl);
+            this.logOperation('ImageEncoded', true, slideIndex);
+            
+            // Créer une promesse pour setSelectedDataAsync qui est une API asynchrone à l'ancienne
+            const insertImagePromise = new Promise<void>((resolveInsert, rejectInsert) => {
+              Office.context.document.setSelectedDataAsync(
+                imageBase64, 
+                {
+                  coercionType: Office.CoercionType.Image,
+                  imageLeft: imageLeft,
+                  imageTop: imageTop,
+                  imageWidth: imageWidth,
+                  imageHeight: imageHeight
+                },
+                (result) => {
+                  if (result.status === Office.AsyncResultStatus.Succeeded) {
+                    this.logOperation('InsertImage', true, slideIndex);
+                    resolveInsert();
+                  } else {
+                    this.logOperation('InsertImage', false, slideIndex, result.error?.message || "Échec de l'insertion d'image");
+                    rejectInsert(new Error(result.error?.message || "Échec de l'insertion d'image"));
+                  }
+                }
+              );
+            });
+
+            await insertImagePromise;
+            resolve();
+            context.sync();
+          } catch (imageError) {
+            this.logOperation('ImageProcessing', false, slideIndex, imageError.message);
+            reject(imageError);
+          }
+          } catch (error) {
+            this.logOperation('UpdateSlideImage', false, slideIndex, error.message);
+            reject(error);
+          }
+        });
+      } catch (error) {
+        this.logOperation('PowerPointRunSetup', false, slideIndex, error.message);
+        reject(error);
+      }
+    });
+  }
+
+  private static async getImageAsBase64(imageUrl: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.onload = function() {
+        const reader = new FileReader();
+        reader.onloadend = function() {
+          resolve(reader.result as string);
+        };
+        console.log(xhr.response);
+        reader.readAsDataURL(xhr.response);
+      };
+      xhr.onerror = function() {
+        reject(new Error("Impossible de charger l'image"));
+      };
+      xhr.open('GET', imageUrl);
+      xhr.responseType = 'blob';
+      xhr.send();
+    });
+  }
 }

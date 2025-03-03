@@ -158,11 +158,12 @@ function App() {
     const updatedSlides = [...slides];
     updatedSlides[slideIndex] = { ...updatedSlides[slideIndex], imageUrl };
     setSlides(updatedSlides);
-
+  
     // Essayer de mettre à jour la diapositive dans PowerPoint
     try {
       setOperationStatus('Mise à jour de la diapositive avec l\'image sélectionnée...');
-      await PowerPointService.createSlides([updatedSlides[slideIndex]]);
+      // Appeler la méthode pour se positionner sur la slide et ajouter l'image
+      await PowerPointService.updateSlideImage(slideIndex, imageUrl);
       setOperationStatus('');
       setMessage('Image ajoutée à la diapositive avec succès !');
     } catch (error) {

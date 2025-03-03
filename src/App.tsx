@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Send, Key, ChevronDown, ChevronUp, AlertCircle, RefreshCw } from 'lucide-react';
-import { MistralService, ApiLog } from './services/mistral';
+import { Send, Key, ChevronDown, ChevronUp, AlertCircle, RefreshCw, Image } from 'lucide-react';
+import { MistralService, ApiLog, Slide } from './services/mistral';
 import { PowerPointService, SlideOperationLog } from './services/powerpoint';
+import { PexelsService, PexelsImage } from './services/pexels';
 
 function App() {
   const [apiKey, setApiKey] = useState('');
@@ -12,8 +13,10 @@ function App() {
   const [mistralService, setMistralService] = useState<MistralService | null>(null);
   const [showLogs, setShowLogs] = useState(false);
   const [showPPTLogs, setShowPPTLogs] = useState(false);
-  const [slides, setSlides] = useState<any[]>([]);
+  const [slides, setSlides] = useState<Slide[]>([]);
   const [operationStatus, setOperationStatus] = useState<string>('');
+  const [loadingImages, setLoadingImages] = useState<{ [key: number]: boolean }>({});
+  const [suggestedImages, setSuggestedImages] = useState<{ [key: number]: PexelsImage[] }>({});
 
   useEffect(() => {
     const savedApiKey = localStorage.getItem('mistral_api_key');
@@ -56,6 +59,7 @@ function App() {
     setMessage('Génération de la présentation en cours...');
     setError('');
     setSlides([]);
+    setSuggestedImages({});
     setOperationStatus('Initialisation...');
 
     try {
@@ -81,6 +85,57 @@ function App() {
       setMessage('');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSuggestImages = async (slideIndex: number) => {
+    if (!mistralService) {
+      setError('Veuillez d\'abord configurer votre clé API');
+      return;
+    }
+
+    // Mettre à jour l'état de chargement pour cette slide
+    setLoadingImages(prev => ({ ...prev, [slideIndex]: true }));
+
+    try {
+      // Récupérer le contenu de la slide
+      const slide = slides[slideIndex];
+      const slideContent = `${slide.title}\n${slide.content}`;
+
+      // Générer des mots-clés pour la recherche d'images
+      const keywords = await mistralService.generateKeywordsForImage(slideContent);
+      console.log(`Mots-clés générés: ${keywords}`);
+
+      // Rechercher des images avec ces mots-clés
+      const images = await PexelsService.searchImages(keywords);
+      console.log(`Images trouvées: ${images.length}`);
+
+      // Mettre à jour l'état avec les images suggérées
+      setSuggestedImages(prev => ({ ...prev, [slideIndex]: images }));
+    } catch (error) {
+      console.error('Erreur lors de la suggestion d\'images:', error);
+      setError(`Erreur lors de la recherche d'images: ${error.message}`);
+    } finally {
+      // Mettre à jour l'état de chargement
+      setLoadingImages(prev => ({ ...prev, [slideIndex]: false }));
+    }
+  };
+
+  const handleSelectImage = async (slideIndex: number, imageUrl: string) => {
+    // Mettre à jour l'état local des slides avec l'URL de l'image sélectionnée
+    const updatedSlides = [...slides];
+    updatedSlides[slideIndex] = { ...updatedSlides[slideIndex], imageUrl };
+    setSlides(updatedSlides);
+
+    // Essayer de mettre à jour la diapositive dans PowerPoint
+    try {
+      setOperationStatus('Mise à jour de la diapositive avec l\'image sélectionnée...');
+      await PowerPointService.createSlides([updatedSlides[slideIndex]]);
+      setOperationStatus('');
+      setMessage('Image ajoutée à la diapositive avec succès !');
+    } catch (error) {
+      setOperationStatus('');
+      setError(`Erreur lors de l'ajout de l'image: ${error.message}`);
     }
   };
 
@@ -128,7 +183,7 @@ function App() {
     </div>
   );
 
-  const SlidePreview = ({ slides }: { slides: any[] }) => (
+  const SlidePreview = ({ slides }: { slides: Slide[] }) => (
     <div className="mt-4 border rounded-md p-4 bg-gray-50">
       <h3 className="text-lg font-medium mb-3">Aperçu des diapositives générées</h3>
       <div className="space-y-4">
@@ -136,6 +191,60 @@ function App() {
           <div key={index} className="border rounded p-3 bg-white">
             <h4 className="font-bold">Diapositive {index + 1}: {slide.title}</h4>
             <p className="mt-2 text-sm whitespace-pre-line">{slide.content}</p>
+            
+            {/* Bouton pour proposer un visuel */}
+            <div className="mt-3 flex items-center">
+              {!suggestedImages[index] && (
+                <button
+                  onClick={() => handleSuggestImages(index)}
+                  disabled={loadingImages[index]}
+                  className="flex items-center px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
+                >
+                  {loadingImages[index] ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Image className="h-4 w-4 mr-2" />
+                  )}
+                  Proposer un visuel
+                </button>
+              )}
+            </div>
+            
+            {/* Affichage des images suggérées */}
+            {suggestedImages[index] && (
+              <div className="mt-3">
+                <h5 className="text-sm font-medium mb-2">Sélectionnez une image :</h5>
+                <div className="flex flex-wrap gap-2">
+                  {suggestedImages[index].map((image, imgIndex) => (
+                    <div 
+                      key={imgIndex} 
+                      className={`relative cursor-pointer border-2 rounded overflow-hidden hover:opacity-90 transition-opacity ${slide.imageUrl === image.src.medium ? 'border-blue-500' : 'border-transparent'}`}
+                      onClick={() => handleSelectImage(index, image.src.medium)}
+                    >
+                      <img 
+                        src={image.src.small} 
+                        alt={image.alt || `Image suggestion ${imgIndex + 1}`} 
+                        className="w-24 h-24 object-cover"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Affichage de l'image sélectionnée */}
+            {slide.imageUrl && (
+              <div className="mt-3">
+                <h5 className="text-sm font-medium mb-2">Image sélectionnée :</h5>
+                <div className="border rounded overflow-hidden" style={{ maxWidth: '300px' }}>
+                  <img 
+                    src={slide.imageUrl} 
+                    alt={`Image pour ${slide.title}`} 
+                    className="w-full h-auto"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>

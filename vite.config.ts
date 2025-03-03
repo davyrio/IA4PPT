@@ -13,7 +13,7 @@ export default defineConfig({
       cert: fs.readFileSync('.cert/cert.pem'),
     },
     headers: {
-      'Access-Control-Allow-Origin': '*'
+      'Access-Control-Allow-Origin': 'https://api.pexels.com'
     }
   },
   build: {

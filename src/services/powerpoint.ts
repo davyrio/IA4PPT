@@ -154,9 +154,29 @@ export class PowerPointService {
                 console.log(`Updated text of shape ${shapeName} #${shapeId}: ${textFrame.textRange.text}`);
               });
       
+              // Ajouter l'image si elle existe
+              if (slide.imageUrl) {
+                try {
+                  // Ajouter l'image à la diapositive
+                  const imgShape = newSlide.shapes.addImage(slide.imageUrl);
+                  await context.sync();
+                  
+                  // Positionner l'image (ajuster selon vos besoins)
+                  imgShape.left = 100;
+                  imgShape.top = 200;
+                  imgShape.width = 300;
+                  imgShape.height = 200;
+                  await context.sync();
+                  
+                  this.logOperation('AddImage', true, i, undefined, { imageUrl: slide.imageUrl });
+                } catch (imageError) {
+                  this.logOperation('AddImage', false, i, imageError.message, { imageUrl: slide.imageUrl });
+                }
+              }
+
               await context.sync();
               
-              console.log(`Added slide ${j}: ${slide.title}`);
+              console.log(`Added slide ${i}: ${slide.title}`);
               this.logOperation('AddSlide', true, i, undefined, { title: slide.title.substring(0, 20) + '...' });
             } catch (slideError) {
               this.logOperation('AddSlide', false, i, slideError.message, { title: slide.title.substring(0, 20) + '...' });
@@ -191,6 +211,9 @@ export class PowerPointService {
           allSlidesText += `==== DIAPOSITIVE ${index + 1} ====\n\n`;
           allSlidesText += `TITRE: ${slide.title}\n\n`;
           allSlidesText += `CONTENU:\n${slide.content}\n\n`;
+          if (slide.imageUrl) {
+            allSlidesText += `IMAGE: ${slide.imageUrl}\n\n`;
+          }
           allSlidesText += `-----------------\n\n`;
         });
         

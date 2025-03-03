@@ -3,6 +3,7 @@ import axios from 'axios';
 export interface Slide {
   title: string;
   content: string;
+  imageUrl?: string;
 }
 
 export interface ApiLog {
@@ -86,6 +87,47 @@ export class MistralService {
       this.logs.unshift(log);
       console.error('Mistral API Error:', error);
       throw new Error('Erreur lors de la génération de la présentation');
+    }
+  }
+
+  async generateKeywordsForImage(slideContent: string): Promise<string> {
+    const request = {
+      model: 'mistral-large-latest',
+      messages: [{
+        role: 'user',
+        content: `Analyse le contenu suivant d'une diapositive PowerPoint et génère 3 à 5 mots-clés pertinents en français qui pourraient être utilisés pour rechercher une image illustrant parfaitement ce contenu. Réponds uniquement avec les mots-clés séparés par des virgules, sans phrases ni explications supplémentaires.\n\nContenu de la diapositive:\n${slideContent}`
+      }],
+      temperature: 0.3
+    };
+
+    const log: ApiLog = {
+      timestamp: new Date().toISOString(),
+      request: request
+    };
+
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/chat/completions`,
+        request,
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      log.response = response.data;
+      this.logs.unshift(log);
+      
+      // Récupérer les mots-clés générés
+      const keywords = response.data.choices[0].message.content.trim();
+      return keywords;
+    } catch (error) {
+      log.error = error;
+      this.logs.unshift(log);
+      console.error('Mistral API Error:', error);
+      throw new Error('Erreur lors de la génération des mots-clés');
     }
   }
 }

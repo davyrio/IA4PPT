@@ -300,7 +300,7 @@ function App() {
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden">
         <div className="p-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Assistant Mistral PowerPoint</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">InexIA - Assistant Mistral PowerPoint</h1>
           
           {error && (
             <div className="mb-4 p-4 rounded-md bg-red-50 flex items-start">

@@ -35,7 +35,7 @@ export class MistralService {
       model: 'mistral-large-latest',
       messages: [{
         role: 'user',
-        content: `Crée une présentation powerpoint sur le sujet suivant :  [${prompt}]. Ta réponse contiendra un texte brut au Format JSON array contenant title and content, sans aucun autre caractère de mise forme. Ta réponse doit contenir au moins 3 slides et maximum 10 slides. La présentation doit débuter obligatoirement par une slide avec le titre de la présentation et un sous titre.`
+        content: `Crée une présentation powerpoint sur le sujet suivant :  [${prompt}]. Ta réponse contiendra un texte brut au Format JSON array contenant title and content, sans aucun autre caractère de mise forme. Ta réponse doit contenir au moins 3 slides et maximum 20 slides. La présentation doit débuter obligatoirement par une slide avec le titre de la présentation et un sous titre.`
       }],
       temperature: 0.7
     };

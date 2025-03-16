@@ -98,16 +98,27 @@ export class PowerPointService {
           }
         });
 
-        
+        /*
         // Create a new slide using an existing master slide and layout.
           const newSlideOptions: PowerPoint.AddSlideOptions = {
-            slideMasterId: '2147483648#93620447', /* An ID from `Presentation.slideMasters`. */
-            layoutId: '2147483650#595629897' /* An ID from `SlideMaster.layouts`. */
+            slideMasterId: '2147483648#93620447', // An ID from `Presentation.slideMasters`. 
+            layoutId: '2147483650#595629897' // An ID from `SlideMaster.layouts`. 
           };
           const newSlideTitleOptions: PowerPoint.AddSlideOptions = {
-            slideMasterId: '2147483648#93620447', /* An ID from `Presentation.slideMasters`. */
-            layoutId: '2147483649#2160907878' /* An ID from `SlideMaster.layouts`. */
+            slideMasterId: '2147483648#93620447', // An ID from `Presentation.slideMasters`. 
+            layoutId: '2147483649#2160907878' // An ID from `SlideMaster.layouts`.
           };
+          */
+
+        // IN ENEXTENSO Create a new slide using an existing master slide and layout.
+        const newSlideOptions: PowerPoint.AddSlideOptions = {
+          slideMasterId: '2147483660#2303863348', /* An ID from `Presentation.slideMasters`. */
+          layoutId: '2147483691#2388820607' /* An ID from `SlideMaster.layouts`. */
+        };
+        const newSlideTitleOptions: PowerPoint.AddSlideOptions = {
+          slideMasterId: '2147483660#2303863348', /* An ID from `Presentation.slideMasters`. */
+          layoutId: '2147483661#4093799263' /* An ID from `SlideMaster.layouts`. */
+        };
       
         PowerPoint.run(async (context) => {
           for (let i = 0; i < slides.length; i++) {
@@ -147,32 +158,14 @@ export class PowerPointService {
                 let shapeName = shape.name;
                 if (shapeName.includes('Title')) {
                     textFrame.textRange.text = slide.title;
-                } else if (shapeName.includes('Content') || shapeName.includes('Subtitle')) {
+                } else if (shapeName.includes('Content') || shapeName.includes('Subtitle') || shapeName.includes('Text Placeholder 3')) {
                     textFrame.textRange.text = slide.content;
                 }
                 await context.sync();
                 console.log(`Updated text of shape ${shapeName} #${shapeId}: ${textFrame.textRange.text}`);
               });
       
-              // Ajouter l'image si elle existe
-              if (slide.imageUrl) {
-                try {
-                  // Ajouter l'image à la diapositive
-                  const imgShape = newSlide.shapes.addImage(slide.imageUrl);
-                  await context.sync();
-                  
-                  // Positionner l'image (ajuster selon vos besoins)
-                  imgShape.left = 100;
-                  imgShape.top = 200;
-                  imgShape.width = 300;
-                  imgShape.height = 200;
-                  await context.sync();
-                  
-                  this.logOperation('AddImage', true, i, undefined, { imageUrl: slide.imageUrl });
-                } catch (imageError) {
-                  this.logOperation('AddImage', false, i, imageError.message, { imageUrl: slide.imageUrl });
-                }
-              }
+              
 
               await context.sync();
               
@@ -268,7 +261,8 @@ export class PowerPointService {
             
             for (let i = 0; i < shapes.items.length; i++) {
               const shape = shapes.items[i];
-              if (shape.name.includes('Content')) {
+              console.log(`Shape ${i}: ${shape.name}`);
+              if (shape.name.includes('Content') || shape.name.includes('Text Placeholder 3')) {
                 contentShape = shape;
               } else if (shape.name.includes('Picture') || 
                         shape.name.includes('Image') || 
@@ -319,12 +313,14 @@ export class PowerPointService {
           // Convertir l'image en base64
           try {
             const imageBase64 = await this.getImageAsBase64(imageUrl);
+            const base64Data = imageBase64.split(',')[1];
+            console.log('Image loaded:', base64Data);
             this.logOperation('ImageEncoded', true, slideIndex);
             
             // Créer une promesse pour setSelectedDataAsync qui est une API asynchrone à l'ancienne
             const insertImagePromise = new Promise<void>((resolveInsert, rejectInsert) => {
               Office.context.document.setSelectedDataAsync(
-                imageBase64, 
+                base64Data, 
                 {
                   coercionType: Office.CoercionType.Image,
                   imageLeft: imageLeft,
@@ -364,22 +360,35 @@ export class PowerPointService {
   }
 
   private static async getImageAsBase64(imageUrl: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.onload = function() {
+    try {
+      // Utiliser fetch pour récupérer l'image
+      const response = await fetch(imageUrl);
+      
+      // Vérifier si la requête a réussi
+      if (!response.ok) {
+        throw new Error(`Impossible de charger l'image: ${response.status} ${response.statusText}`);
+      }
+  
+      // Convertir la réponse en blob
+      const blob = await response.blob();
+  
+      // Convertir le blob en base64
+      return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onloadend = function() {
-          resolve(reader.result as string);
+        reader.onloadend = () => {
+          // Vérifier que le résultat est bien une chaîne base64
+          if (typeof reader.result === 'string') {
+            resolve(reader.result);
+          } else {
+            reject(new Error('Échec de la conversion en base64'));
+          }
         };
-        console.log(xhr.response);
-        reader.readAsDataURL(xhr.response);
-      };
-      xhr.onerror = function() {
-        reject(new Error("Impossible de charger l'image"));
-      };
-      xhr.open('GET', imageUrl);
-      xhr.responseType = 'blob';
-      xhr.send();
-    });
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('Erreur lors du chargement de l\'image:', error);
+      throw new Error(`Impossible de convertir l'image: ${error.message}`);
+    }
   }
 }

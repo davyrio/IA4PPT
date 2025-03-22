@@ -5,10 +5,10 @@
   xsi:type="TaskPaneApp">
   <Id>05c2e1c9-3e1d-406e-9a91-e9ac64854143</Id>
   <Version>1.0.0.0</Version>
-  <ProviderName>Mistral AI Assistant</ProviderName>
+  <ProviderName>InexIA - Mistral AI Assistant</ProviderName>
   <DefaultLocale>fr-FR</DefaultLocale>
-  <DisplayName DefaultValue="Assistant Mistral"/>
-  <Description DefaultValue="Générez des présentations PowerPoint avec Mistral AI"/>
+  <DisplayName DefaultValue="InexIA for Powerpoint"/>
+  <Description DefaultValue="Générez des présentations PowerPoint avec InexIA"/>
   <IconUrl DefaultValue="https://localhost:3000/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://localhost:3000/icon-64.png"/>
   <SupportUrl DefaultValue="https://localhost:3000/help"/>

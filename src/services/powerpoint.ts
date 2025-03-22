@@ -98,16 +98,27 @@ export class PowerPointService {
           }
         });
 
-        
+        /*
         // Create a new slide using an existing master slide and layout.
           const newSlideOptions: PowerPoint.AddSlideOptions = {
-            slideMasterId: '2147483648#93620447', /* An ID from `Presentation.slideMasters`. */
-            layoutId: '2147483650#595629897' /* An ID from `SlideMaster.layouts`. */
+            slideMasterId: '2147483648#93620447', // An ID from `Presentation.slideMasters`. 
+            layoutId: '2147483650#595629897' // An ID from `SlideMaster.layouts`. 
           };
           const newSlideTitleOptions: PowerPoint.AddSlideOptions = {
-            slideMasterId: '2147483648#93620447', /* An ID from `Presentation.slideMasters`. */
-            layoutId: '2147483649#2160907878' /* An ID from `SlideMaster.layouts`. */
+            slideMasterId: '2147483648#93620447', // An ID from `Presentation.slideMasters`. 
+            layoutId: '2147483649#2160907878' // An ID from `SlideMaster.layouts`.
           };
+          */
+
+        // IN ENEXTENSO Create a new slide using an existing master slide and layout.
+        const newSlideOptions: PowerPoint.AddSlideOptions = {
+          slideMasterId: '2147483660#2303863348', /* An ID from `Presentation.slideMasters`. */
+          layoutId: '2147483691#2388820607' /* An ID from `SlideMaster.layouts`. */
+        };
+        const newSlideTitleOptions: PowerPoint.AddSlideOptions = {
+          slideMasterId: '2147483660#2303863348', /* An ID from `Presentation.slideMasters`. */
+          layoutId: '2147483661#4093799263' /* An ID from `SlideMaster.layouts`. */
+        };
       
         PowerPoint.run(async (context) => {
           for (let i = 0; i < slides.length; i++) {
@@ -147,16 +158,18 @@ export class PowerPointService {
                 let shapeName = shape.name;
                 if (shapeName.includes('Title')) {
                     textFrame.textRange.text = slide.title;
-                } else if (shapeName.includes('Content') || shapeName.includes('Subtitle')) {
+                } else if (shapeName.includes('Content') || shapeName.includes('Subtitle') || shapeName.includes('Text Placeholder 3')) {
                     textFrame.textRange.text = slide.content;
                 }
                 await context.sync();
                 console.log(`Updated text of shape ${shapeName} #${shapeId}: ${textFrame.textRange.text}`);
               });
       
+              
+
               await context.sync();
               
-              console.log(`Added slide ${j}: ${slide.title}`);
+              console.log(`Added slide ${i}: ${slide.title}`);
               this.logOperation('AddSlide', true, i, undefined, { title: slide.title.substring(0, 20) + '...' });
             } catch (slideError) {
               this.logOperation('AddSlide', false, i, slideError.message, { title: slide.title.substring(0, 20) + '...' });
@@ -191,6 +204,9 @@ export class PowerPointService {
           allSlidesText += `==== DIAPOSITIVE ${index + 1} ====\n\n`;
           allSlidesText += `TITRE: ${slide.title}\n\n`;
           allSlidesText += `CONTENU:\n${slide.content}\n\n`;
+          if (slide.imageUrl) {
+            allSlidesText += `IMAGE: ${slide.imageUrl}\n\n`;
+          }
           allSlidesText += `-----------------\n\n`;
         });
         
@@ -212,5 +228,167 @@ export class PowerPointService {
         reject(error);
       }
     });
+  }
+
+  static async updateSlideImage(slideIndex: number, imageUrl: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        PowerPoint.run(async (context) => {
+          try {
+            // Charger toutes les slides
+            const slides = context.presentation.slides.load("items");
+            await context.sync();
+            
+            // Vérifier si la slide existe
+            if (slideIndex >= slides.items.length) {
+              this.logOperation('UpdateSlideImage', false, slideIndex, "La diapositive n'existe pas");
+              reject(new Error(`La diapositive ${slideIndex + 1} n'existe pas`));
+              return;
+            }
+            
+            // Se positionner sur la slide sélectionnée
+            const targetSlide = await context.presentation.slides.getItemAt(slideIndex);
+            await context.sync();
+            this.logOperation('SelectSlide', true, slideIndex);
+            
+            // Charger les formes existantes dans la slide
+            const shapes = targetSlide.shapes.load("items,items/textFrame,items/name,items/id,items/left,items/top,items/width,items/height");
+            await context.sync();
+            
+            // Identifier le shape de contenu
+            let contentShape = null;
+            let existingImage = null;
+            
+            for (let i = 0; i < shapes.items.length; i++) {
+              const shape = shapes.items[i];
+              console.log(`Shape ${i}: ${shape.name}`);
+              if (shape.name.includes('Content') || shape.name.includes('Text Placeholder 3')) {
+                contentShape = shape;
+              } else if (shape.name.includes('Picture') || 
+                        shape.name.includes('Image') || 
+                        shape.name.includes('img')) {
+                // Identifier toute image existante pour la remplacer
+                existingImage = shape;
+              }
+            }
+            
+            // Si aucun shape de contenu n'a été trouvé
+            if (!contentShape) {
+              this.logOperation('UpdateSlideImage', false, slideIndex, "Aucun contenu trouvé dans la diapositive");
+              reject(new Error("Aucun contenu trouvé dans la diapositive"));
+              return;
+            }
+            
+            // Si une image existe déjà, la supprimer
+            if (existingImage) {
+              existingImage.delete();
+              await context.sync();
+              this.logOperation('DeleteExistingImage', true, slideIndex);
+            }
+            
+            // Récupérer les dimensions et la position actuelles du contenu
+            const contentLeft = contentShape.left;
+            const contentTop = contentShape.top;
+            const contentWidth = contentShape.width;
+            const contentHeight = contentShape.height;
+            
+            // Calculer les nouvelles dimensions et positions
+            // L'image prendra 40% de la largeur à gauche
+            const imageWidth = contentWidth * 0.4;
+            const imageHeight = contentHeight * 0.9; // 90% de la hauteur du contenu
+            const imageLeft = contentLeft;
+            const imageTop = contentTop + (contentHeight - imageHeight) / 2; // Centrer verticalement
+            
+            // Réduire la largeur du contenu et le déplacer vers la droite
+            contentShape.left = contentLeft + imageWidth + 10; // 10 pixels de marge
+            contentShape.width = contentWidth - imageWidth - 10;
+            
+            await context.sync();
+            this.logOperation('ResizeContent', true, slideIndex, undefined, {
+              originalWidth: contentWidth,
+              newWidth: contentShape.width,
+              newLeft: contentShape.left
+            });
+            
+          // Convertir l'image en base64
+          try {
+            const imageBase64 = await this.getImageAsBase64(imageUrl);
+            const base64Data = imageBase64.split(',')[1];
+            console.log('Image loaded:', base64Data);
+            this.logOperation('ImageEncoded', true, slideIndex);
+            
+            // Créer une promesse pour setSelectedDataAsync qui est une API asynchrone à l'ancienne
+            const insertImagePromise = new Promise<void>((resolveInsert, rejectInsert) => {
+              Office.context.document.setSelectedDataAsync(
+                base64Data, 
+                {
+                  coercionType: Office.CoercionType.Image,
+                  imageLeft: imageLeft,
+                  imageTop: imageTop,
+                  imageWidth: imageWidth,
+                  imageHeight: imageHeight
+                },
+                (result) => {
+                  if (result.status === Office.AsyncResultStatus.Succeeded) {
+                    this.logOperation('InsertImage', true, slideIndex);
+                    resolveInsert();
+                  } else {
+                    this.logOperation('InsertImage', false, slideIndex, result.error?.message || "Échec de l'insertion d'image");
+                    rejectInsert(new Error(result.error?.message || "Échec de l'insertion d'image"));
+                  }
+                }
+              );
+            });
+
+            await insertImagePromise;
+            resolve();
+            context.sync();
+          } catch (imageError) {
+            this.logOperation('ImageProcessing', false, slideIndex, imageError.message);
+            reject(imageError);
+          }
+          } catch (error) {
+            this.logOperation('UpdateSlideImage', false, slideIndex, error.message);
+            reject(error);
+          }
+        });
+      } catch (error) {
+        this.logOperation('PowerPointRunSetup', false, slideIndex, error.message);
+        reject(error);
+      }
+    });
+  }
+
+  private static async getImageAsBase64(imageUrl: string): Promise<string> {
+    try {
+      // Utiliser fetch pour récupérer l'image
+      const response = await fetch(imageUrl);
+      
+      // Vérifier si la requête a réussi
+      if (!response.ok) {
+        throw new Error(`Impossible de charger l'image: ${response.status} ${response.statusText}`);
+      }
+  
+      // Convertir la réponse en blob
+      const blob = await response.blob();
+  
+      // Convertir le blob en base64
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          // Vérifier que le résultat est bien une chaîne base64
+          if (typeof reader.result === 'string') {
+            resolve(reader.result);
+          } else {
+            reject(new Error('Échec de la conversion en base64'));
+          }
+        };
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('Erreur lors du chargement de l\'image:', error);
+      throw new Error(`Impossible de convertir l'image: ${error.message}`);
+    }
   }
 }
